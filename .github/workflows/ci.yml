@@ -1,0 +1,25 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install mission_engine
+        run: pip install -e ./mission_engine
+      - name: Run tests
+        run: python -m unittest discover -s mission_engine/tests -v
+      - name: CLI smoke test
+        run: mission-engine generate -i mission_engine/examples/solar_farm_params.json -o smoke.plan

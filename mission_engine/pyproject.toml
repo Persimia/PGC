@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mission-engine"
+version = "0.1.0"
+description = "Parametric survey mission generation for ArduPilot (.plan output)"
+requires-python = ">=3.11"
+# Deliberately zero runtime dependencies in v1 (design doc 5.2 simplicity rule).
+# Shapely enters only when keep-out clipping is implemented.
+dependencies = []
+
+[project.scripts]
+mission-engine = "mission_engine.adapters.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["mission_engine*"]
