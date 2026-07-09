@@ -1,8 +1,11 @@
-# GCS Design Document — [Product Name TBD]
+# GCS Design Document — PGC
 
-**Status:** Draft v0.2 — for internal review and editing (v0.2 adds the fleet tier)
+**Status:** Draft v0.2 — for internal review and editing
+
 **Date:** 2026-07-06
-**Owners:** [you]
+
+**Owners:** Samuel Kemp
+
 **Decision summary:** Branded QGroundControl custom build as the GCS shell + proprietary Python Mission Engine + box services; a future self-hosted Fleet Console sits above the Box APIs. No from-scratch GCS. No Mission Planner fork.
 
 ---

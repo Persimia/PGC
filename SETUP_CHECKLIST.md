@@ -7,14 +7,23 @@ Order matters roughly top to bottom. Design doc references in parentheses.
 
 - [ ] Create the Git remote (GitHub org), push this repo, confirm CI goes green
       on the first push (proves the Windows + Linux matrix works).
-- [ ] Follow README Quickstart: venv, `pip install -e .`, tests pass locally.
+- [x] Follow README Quickstart: venv, `pip install -e .`, tests pass locally.
+      *(2026-07-09: verified fresh install on Linux/Py3.12 — 37 tests pass +
+      CLI smoke test OK, i.e. exactly what CI runs.)*
 - [ ] Generate `examples/solar_farm.plan` yourself and **open it in the
       Mission Planner you already use** → serpentine + fence visible.
+      *(Example regenerated 2026-07-09 so the committed file matches current
+      CLI output byte-for-byte; earlier copy had been round-tripped through MP.
+      MP visual check still on you.)*
 - [ ] Swap in a real polygon from one of your actual solar sites and eyeball
       the result. File issues for anything surprising — this is the fastest
       feedback loop we have.
 
-## 2. ArduPilot SITL (half a day, once)
+## 2. ArduPilot SITL (half a day, once) — **DEFERRED (2026-07-09)**
+
+> Skipped for now by decision. Note: SITL is the Phase 1 acceptance test, so
+> it must be un-deferred before Phase 1 is declared done and before any QGC
+> overlay work relies on flown-mission behavior.
 
 Reference: https://ardupilot.org/dev/docs/sitl-simulator-software-in-the-loop.html
 
