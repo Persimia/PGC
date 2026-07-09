@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Demo site fence library</name>
+    <!--
+      Companion to solar_farm_params.json. Demonstrates the zone tag
+      convention (tags live in each placemark's name, editable in Google
+      Earth):  [inclusion]  [keepout]  [min_alt=<meters>]
+
+      This set PASSES against the demo params (altitude 60 m):
+      - the inclusion fence contains the whole survey area
+      - the keep-out (substation) sits outside the survey polygon
+      - the overhead line corridor allows overflight at/above 40 m
+    -->
+    <Placemark>
+      <name>Site boundary [inclusion]</name>
+      <Polygon><outerBoundaryIs><LinearRing><coordinates>
+        -84.8530,33.4485,0 -84.8445,33.4485,0 -84.8445,33.4535,0 -84.8530,33.4535,0 -84.8530,33.4485,0
+      </coordinates></LinearRing></outerBoundaryIs></Polygon>
+    </Placemark>
+    <Placemark>
+      <name>Substation A [keepout]</name>
+      <description>Company-wide: never overfly energized switchgear.</description>
+      <Polygon><outerBoundaryIs><LinearRing><coordinates>
+        -84.8528,33.4487,0 -84.8522,33.4487,0 -84.8522,33.4492,0 -84.8528,33.4492,0 -84.8528,33.4487,0
+      </coordinates></LinearRing></outerBoundaryIs></Polygon>
+    </Placemark>
+    <Placemark>
+      <name>Overhead line corridor [min_alt=40]</name>
+      <Polygon><outerBoundaryIs><LinearRing><coordinates>
+        -84.8500,33.4485,0 -84.8495,33.4485,0 -84.8495,33.4535,0 -84.8500,33.4535,0 -84.8500,33.4485,0
+      </coordinates></LinearRing></outerBoundaryIs></Polygon>
+    </Placemark>
+    <Placemark>
+      <name>Gate camera (just a pin, ignored by the engine)</name>
+      <Point><coordinates>-84.8487,33.4490,0</coordinates></Point>
+    </Placemark>
+  </Document>
+</kml>

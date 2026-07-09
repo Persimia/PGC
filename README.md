@@ -29,6 +29,28 @@ Then open `/tmp/demo.plan` in stock QGroundControl or Mission Planner
 (File → Open/Load) — seeing the serpentine + fence render there is the real
 acceptance test, and it works today with the tools we already use.
 
+## Fence libraries (KML)
+
+Fences are durable assets separate from any mission: draw them once in
+Google Earth (company-wide or per-site) and generate every mission against
+them with repeatable `--fence` flags:
+
+```bash
+mission-engine generate -i examples/solar_farm_params.json \
+    -f examples/site_fences.kml -o /tmp/demo.plan
+```
+
+Tag each polygon in its placemark **name** (or description):
+`[keepout]` never enter · `[min_alt=40]` enter only at/above 40 m ·
+`[inclusion]` stay inside (max one). Untagged polygons are rejected; pins
+and paths are ignored. On any conflict the engine **fails loudly with the
+zone names — it never clips or reroutes** (design doc D11); redraw the area
+instead. `[keepout]`/`[inclusion]` zones are embedded in the `.plan`
+geofence for vehicle-side enforcement; `.waypoints` output carries no fence
+(upload separately in Mission Planner). Not validated: the takeoff climb,
+the RTL path (both depend on launch position), and the camera swath between
+flight lines — the flown path is what's checked.
+
 ## Params schema
 
 ```json
@@ -44,12 +66,13 @@ acceptance test, and it works today with the tools we already use.
 ## Working rules (from the design doc)
 
 - The engine stays **pure Python with no GCS/Qt imports** in `core/` (D2) and
-  **zero third-party deps** until keep-out clipping lands (then Shapely, not
-  hand-rolled clipping).
+  **zero third-party deps**. Exclusion zones are validated against, never
+  clipped around (D11), which is why Shapely never became necessary.
 - The CLI is **stateless** (D3): params in, `.plan` out, process exits. The
   future QGC panel and Box API are thin adapters over the same `core`.
 - v1 survey limits (documented, enforced with clear errors): convex-ish
-  polygons only; geofence = survey polygon (safety margin is a follow-up).
+  polygons only; default geofence = survey polygon, overridable by a KML
+  `[inclusion]` zone (safety margin is a follow-up).
 - Every box capability must exist as an API endpoint before/alongside any UI
   for it (FC1); auth + TLS from day one (FC2).
 

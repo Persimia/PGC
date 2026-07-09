@@ -8,6 +8,12 @@ short-lived child process (design doc D3):
 Output format is inferred from the --output extension: ".waypoints" writes
 Mission Planner's native format; anything else writes a QGC .plan.
 
+Fence libraries (repeatable --fence KML files, see core/fences.py for the
+zone tag convention) are validated against before anything is written; a
+conflict exits 2 with the offending zone names. [keepout]/[inclusion] zones
+are embedded in .plan geofences; .waypoints carries no fence (upload fences
+separately in Mission Planner).
+
 Exit codes: 0 success, 2 bad input. Errors go to stderr as one readable line
 (the QGC panel will surface stderr to the operator).
 """
@@ -18,6 +24,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from ..core.fences import load_fence_files, validate_mission
 from ..core.params import SurveyParams
 from ..core.plan_io import build_plan, write_plan, write_waypoints
 from ..core.survey import generate_serpentine
@@ -37,6 +44,15 @@ def main(argv: list[str] | None = None) -> int:
         "-o",
         default=None,
         help="Output .plan path (default: input name with .plan extension).",
+    )
+    gen.add_argument(
+        "--fence",
+        "-f",
+        action="append",
+        default=[],
+        metavar="KML",
+        help="Fence library KML file; repeatable. Zones must be tagged "
+        "[keepout], [min_alt=<m>], or [inclusion] in their name/description.",
     )
 
     args = parser.parse_args(argv)
@@ -61,8 +77,18 @@ def _generate(args: argparse.Namespace) -> int:
         return 2
 
     try:
+        zones = load_fence_files(args.fence)
+    except FileNotFoundError as exc:
+        print(f"error: fence file not found: {exc.filename}", file=sys.stderr)
+        return 2
+    except ValueError as exc:  # FenceError
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    try:
         waypoints = generate_serpentine(params)
-    except ValueError as exc:  # includes ConcaveNotSupportedError
+        validate_mission(waypoints, params.altitude_m, zones)
+    except ValueError as exc:  # ConcaveNotSupportedError, FenceViolationError
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
@@ -70,7 +96,7 @@ def _generate(args: argparse.Namespace) -> int:
         if out_path.suffix.lower() == ".waypoints":
             write_waypoints(params, waypoints, out_path)
         else:
-            plan = build_plan(params, waypoints)
+            plan = build_plan(params, waypoints, zones)
             write_plan(plan, out_path)
     except OSError as exc:
         print(
@@ -81,7 +107,11 @@ def _generate(args: argparse.Namespace) -> int:
         return 2
 
     n_lines = len(waypoints) // 2
-    print(f"wrote {out_path} ({n_lines} flight lines, {len(waypoints)} waypoints)")
+    fence_note = f", validated against {len(zones)} fence zone(s)" if zones else ""
+    print(
+        f"wrote {out_path} ({n_lines} flight lines, {len(waypoints)} waypoints"
+        f"{fence_note})"
+    )
     return 0
 
 

@@ -233,6 +233,7 @@ mission_engine/
 | D8 | Maps: self-hosted/OSM-style tiles by default | Google/Bing default | Offline requirement + provider ToS risk | Proposed |
 | D9 | Fleet tier = separate self-hosted web console above Box APIs | Extending QGC into an ops center; cloud SaaS | QGC is single-operator by design; deep divergence breaks N8; self-hosting preserves local-first | Accepted (build post-v1) |
 | D10 | Fleet control depth = monitor + dispatch; no remote manual piloting | Joystick-over-internet | C2 latency/reliability/liability; manual flight is being phased out anyway | Accepted (revisit only if manual returns) |
+| D11 | Fences = external KML libraries (Google Earth), validated at generation; conflicts fail loudly, never auto-clipped/rerouted | Fences embedded per-mission; Shapely-based clipping around keep-outs | Fences are durable client assets (company-wide/per-site) reused across missions; refusing beats silently altering a flight path near hazards; validation needs only segment tests, preserving the zero-dependency engine. Zone types: [keepout], [min_alt=N] (overfly permitted at/above N), [inclusion] | Accepted (2026-07-09) |
 
 ## 7. Licensing (decision pending — route options)
 

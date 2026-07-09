@@ -42,8 +42,18 @@ MAV_FRAME_GLOBAL_RELATIVE_ALT = 3
 _DEFAULT_DISPLAY_SPEED_MS = 5.0  # QGC display fields only, not a command
 
 
-def build_plan(params: SurveyParams, waypoints: list[tuple[float, float]]) -> dict:
-    """Assemble the .plan JSON structure for the given survey."""
+def build_plan(
+    params: SurveyParams,
+    waypoints: list[tuple[float, float]],
+    zones: list | None = None,
+) -> dict:
+    """Assemble the .plan JSON structure for the given survey.
+
+    zones: optional list of fences.FenceZone. [keepout] zones become
+    exclusion polygons and an [inclusion] zone replaces the default
+    survey-polygon inclusion fence. [min_alt] zones are generation-time
+    checks only and are never embedded (see the fences module docstring).
+    """
     items: list[dict] = []
     seq = 1
 
@@ -92,6 +102,29 @@ def build_plan(params: SurveyParams, waypoints: list[tuple[float, float]]) -> di
     # DO_CHANGE_SPEED item above, which keeps the exact float.
     display_speed = int(round(speed))
 
+    inclusion_poly = params.polygon
+    exclusion_polys: list[list[tuple[float, float]]] = []
+    for zone in zones or []:
+        if zone.kind == "inclusion":
+            inclusion_poly = zone.polygon
+        elif zone.kind == "keepout":
+            exclusion_polys.append(zone.polygon)
+
+    fence_polygons = [
+        {
+            "version": 1,
+            "inclusion": True,
+            "polygon": [[lat, lon] for lat, lon in inclusion_poly],
+        }
+    ] + [
+        {
+            "version": 1,
+            "inclusion": False,
+            "polygon": [[lat, lon] for lat, lon in poly],
+        }
+        for poly in exclusion_polys
+    ]
+
     return {
         "fileType": "Plan",
         "version": 1,
@@ -108,13 +141,7 @@ def build_plan(params: SurveyParams, waypoints: list[tuple[float, float]]) -> di
         "geoFence": {
             "version": 2,
             "circles": [],
-            "polygons": [
-                {
-                    "version": 1,
-                    "inclusion": True,
-                    "polygon": [[lat, lon] for lat, lon in params.polygon],
-                }
-            ],
+            "polygons": fence_polygons,
         },
         "rallyPoints": {"version": 2, "points": []},
     }
