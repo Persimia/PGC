@@ -31,7 +31,12 @@ MAV_CMD_DO_CHANGE_SPEED = 178
 MAV_AUTOPILOT_ARDUPILOT = 3
 MAV_TYPE_QUADROTOR = 2
 
-MAV_FRAME_MISSION = 2
+# Frame 3 (GLOBAL_RELATIVE_ALT) is used for EVERY item, including DO_ commands
+# and RTL where ArduPilot ignores it. Rationale: Mission Planner's planner grid
+# maps each item's frame through its altmode list {0: Absolute, 3: Relative,
+# 10: Terrain}; any other value - such as 2 (MAV_FRAME_MISSION), which QGC
+# emits for do-commands - raises KeyNotFoundException on load. Frame 3 is in
+# the intersection all our tools accept.
 MAV_FRAME_GLOBAL_RELATIVE_ALT = 3
 
 _DEFAULT_DISPLAY_SPEED_MS = 5.0  # QGC display fields only, not a command
@@ -47,7 +52,7 @@ def build_plan(params: SurveyParams, waypoints: list[tuple[float, float]]) -> di
             seq,
             MAV_CMD_NAV_TAKEOFF,
             MAV_FRAME_GLOBAL_RELATIVE_ALT,
-            [0, 0, 0, None, 0, 0, params.altitude_m],
+            [0, 0, 0, 0, 0, 0, params.altitude_m],
         )
     )
     seq += 1
@@ -58,7 +63,7 @@ def build_plan(params: SurveyParams, waypoints: list[tuple[float, float]]) -> di
             _simple_item(
                 seq,
                 MAV_CMD_DO_CHANGE_SPEED,
-                MAV_FRAME_MISSION,
+                MAV_FRAME_GLOBAL_RELATIVE_ALT,
                 [1, params.speed_ms, -1, 0, 0, 0, 0],
             )
         )
@@ -70,17 +75,22 @@ def build_plan(params: SurveyParams, waypoints: list[tuple[float, float]]) -> di
                 seq,
                 MAV_CMD_NAV_WAYPOINT,
                 MAV_FRAME_GLOBAL_RELATIVE_ALT,
-                [0, 0, 0, None, lat, lon, params.altitude_m],
+                [0, 0, 0, 0, lat, lon, params.altitude_m],
             )
         )
         seq += 1
 
     items.append(
-        _simple_item(seq, MAV_CMD_NAV_RETURN_TO_LAUNCH, MAV_FRAME_MISSION, [0, 0, 0, 0, 0, 0, 0])
+        _simple_item(seq, MAV_CMD_NAV_RETURN_TO_LAUNCH, MAV_FRAME_GLOBAL_RELATIVE_ALT, [0, 0, 0, 0, 0, 0, 0])
     )
 
     home_lat, home_lon = centroid(params.polygon)
     speed = params.speed_ms if params.speed_ms is not None else _DEFAULT_DISPLAY_SPEED_MS
+    # Mission Planner's .plan parser (MissionFile.cs) types these two fields
+    # as integers and hard-fails on "8.0"; QGC accepts either. They are
+    # display/estimate fields only - the authoritative speed is the
+    # DO_CHANGE_SPEED item above, which keeps the exact float.
+    display_speed = int(round(speed))
 
     return {
         "fileType": "Plan",
@@ -90,8 +100,8 @@ def build_plan(params: SurveyParams, waypoints: list[tuple[float, float]]) -> di
             "version": 2,
             "firmwareType": MAV_AUTOPILOT_ARDUPILOT,
             "vehicleType": MAV_TYPE_QUADROTOR,
-            "cruiseSpeed": speed,
-            "hoverSpeed": speed,
+            "cruiseSpeed": display_speed,
+            "hoverSpeed": display_speed,
             "plannedHomePosition": [home_lat, home_lon, 0],
             "items": items,
         },
@@ -114,6 +124,57 @@ def write_plan(plan: dict, path: str | Path) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(plan, f, indent=2)
         f.write("\n")
+
+
+def build_waypoints_text(params: SurveyParams, waypoints: list[tuple[float, float]]) -> str:
+    """Mission Planner's native .waypoints format ("QGC WPL 110").
+
+    Tab-separated rows: INDEX CURRENT FRAME COMMAND P1 P2 P3 P4 LAT LON ALT
+    AUTOCONTINUE. Row 0 is the home position. This format carries the mission
+    only - geofences are uploaded separately in MP, so prefer .plan where it
+    works and use this as the maximally-compatible MP path.
+    """
+    home_lat, home_lon = centroid(params.polygon)
+    rows = [_wp_row(0, 1, 0, MAV_CMD_NAV_WAYPOINT, [0, 0, 0, 0], home_lat, home_lon, 0)]
+    seq = 1
+
+    rows.append(
+        _wp_row(seq, 0, MAV_FRAME_GLOBAL_RELATIVE_ALT, MAV_CMD_NAV_TAKEOFF,
+                [0, 0, 0, 0], 0, 0, params.altitude_m)
+    )
+    seq += 1
+
+    if params.speed_ms is not None:
+        rows.append(
+            _wp_row(seq, 0, MAV_FRAME_GLOBAL_RELATIVE_ALT, MAV_CMD_DO_CHANGE_SPEED,
+                    [1, params.speed_ms, -1, 0], 0, 0, 0)
+        )
+        seq += 1
+
+    for lat, lon in waypoints:
+        rows.append(
+            _wp_row(seq, 0, MAV_FRAME_GLOBAL_RELATIVE_ALT, MAV_CMD_NAV_WAYPOINT,
+                    [0, 0, 0, 0], lat, lon, params.altitude_m)
+        )
+        seq += 1
+
+    rows.append(
+        _wp_row(seq, 0, MAV_FRAME_GLOBAL_RELATIVE_ALT, MAV_CMD_NAV_RETURN_TO_LAUNCH,
+                [0, 0, 0, 0], 0, 0, 0)
+    )
+    return "QGC WPL 110\n" + "\n".join(rows) + "\n"
+
+
+def write_waypoints(params: SurveyParams, waypoints: list[tuple[float, float]], path: str | Path) -> None:
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(build_waypoints_text(params, waypoints))
+
+
+def _wp_row(index: int, current: int, frame: int, command: int, params4: list,
+            lat: float, lon: float, alt: float) -> str:
+    fields = [index, current, frame, command, *params4,
+              f"{lat:.8f}", f"{lon:.8f}", f"{alt:.6f}", 1]
+    return "\t".join(str(f) for f in fields)
 
 
 def _simple_item(seq: int, command: int, frame: int, params7: list) -> dict:

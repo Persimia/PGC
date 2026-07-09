@@ -75,6 +75,13 @@ class TestBuildPlan(unittest.TestCase):
         rehydrated = json.loads(json.dumps(self.plan))
         self.assertEqual(rehydrated["fileType"], "Plan")
 
+    def test_all_items_use_relative_alt_frame(self):
+        # Frame 3 for EVERY item (including do-commands and RTL): Mission
+        # Planner's grid rejects frame 2 with KeyNotFoundException on load.
+        # See the comment above MAV_FRAME_GLOBAL_RELATIVE_ALT in plan_io.py.
+        for item in self.plan["mission"]["items"]:
+            self.assertEqual(item["frame"], 3, msg=f"item {item['doJumpId']}")
+
 
 class TestCli(unittest.TestCase):
     def test_generate_end_to_end(self):
@@ -108,6 +115,30 @@ class TestCli(unittest.TestCase):
     def test_missing_file_exit_code(self):
         rc = cli.main(["generate", "-i", "/nonexistent/params.json"])
         self.assertEqual(rc, 2)
+
+    def test_waypoints_extension_writes_mp_format(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            in_path = Path(tmp) / "params.json"
+            out_path = Path(tmp) / "mission.waypoints"
+            in_path.write_text(json.dumps(PARAMS_DICT), encoding="utf-8")
+
+            rc = cli.main(["generate", "-i", str(in_path), "-o", str(out_path)])
+
+            self.assertEqual(rc, 0)
+            lines = out_path.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(lines[0], "QGC WPL 110")
+            # home + takeoff + speed + waypoints + RTL rows
+            waypoints = generate_serpentine(SurveyParams.from_dict(dict(PARAMS_DICT)))
+            self.assertEqual(len(lines) - 1, len(waypoints) + 4)
+
+    def test_unwritable_output_exit_code(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            in_path = Path(tmp) / "params.json"
+            in_path.write_text(json.dumps(PARAMS_DICT), encoding="utf-8")
+            rc = cli.main(
+                ["generate", "-i", str(in_path), "-o", str(Path(tmp) / "no_such_dir" / "m.plan")]
+            )
+            self.assertEqual(rc, 2)
 
 
 if __name__ == "__main__":

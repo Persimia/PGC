@@ -5,6 +5,9 @@ short-lived child process (design doc D3):
 
     mission-engine generate --input params.json --output mission.plan
 
+Output format is inferred from the --output extension: ".waypoints" writes
+Mission Planner's native format; anything else writes a QGC .plan.
+
 Exit codes: 0 success, 2 bad input. Errors go to stderr as one readable line
 (the QGC panel will surface stderr to the operator).
 """
@@ -16,7 +19,7 @@ import sys
 from pathlib import Path
 
 from ..core.params import SurveyParams
-from ..core.plan_io import build_plan, write_plan
+from ..core.plan_io import build_plan, write_plan, write_waypoints
 from ..core.survey import generate_serpentine
 
 
@@ -50,14 +53,31 @@ def _generate(args: argparse.Namespace) -> int:
 
     try:
         params = SurveyParams.from_json_file(in_path)
-        waypoints = generate_serpentine(params)
-        plan = build_plan(params, waypoints)
-        write_plan(plan, out_path)
     except FileNotFoundError:
         print(f"error: input file not found: {in_path}", file=sys.stderr)
         return 2
-    except ValueError as exc:  # includes ConcaveNotSupportedError, bad JSON values
+    except ValueError as exc:  # bad JSON or bad parameter values
         print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    try:
+        waypoints = generate_serpentine(params)
+    except ValueError as exc:  # includes ConcaveNotSupportedError
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    try:
+        if out_path.suffix.lower() == ".waypoints":
+            write_waypoints(params, waypoints, out_path)
+        else:
+            plan = build_plan(params, waypoints)
+            write_plan(plan, out_path)
+    except OSError as exc:
+        print(
+            f"error: cannot write output file {out_path}: {exc} "
+            "(does the output directory exist?)",
+            file=sys.stderr,
+        )
         return 2
 
     n_lines = len(waypoints) // 2
