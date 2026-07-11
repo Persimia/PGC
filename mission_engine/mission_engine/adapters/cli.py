@@ -6,7 +6,9 @@ short-lived child process (design doc D3):
     mission-engine generate --input params.json --output mission.plan
 
 Output format is inferred from the --output extension: ".waypoints" writes
-Mission Planner's native format; anything else writes a QGC .plan.
+Mission Planner's native format; ".json" writes the raw waypoint list (the
+format the PGC Solar Scan pattern item consumes — see qgc-overlay); anything
+else writes a QGC .plan.
 
 Fence libraries (repeatable --fence KML files, see core/fences.py for the
 zone tag convention) are validated against before anything is written; a
@@ -21,6 +23,7 @@ Exit codes: 0 success, 2 bad input. Errors go to stderr as one readable line
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -55,10 +58,31 @@ def main(argv: list[str] | None = None) -> int:
         "[keepout], [min_alt=<m>], or [inclusion] in their name/description.",
     )
 
+    dump = sub.add_parser(
+        "fences",
+        help="Dump fence-library zones as JSON (for GCS map rendering).",
+    )
+    dump.add_argument(
+        "--fence",
+        "-f",
+        action="append",
+        default=[],
+        metavar="KML",
+        help="Fence library KML file; repeatable.",
+    )
+    dump.add_argument(
+        "--output",
+        "-o",
+        default=None,
+        help="Output JSON path (default: stdout).",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "generate":
         return _generate(args)
+    if args.command == "fences":
+        return _dump_fences(args)
     parser.error(f"unknown command {args.command!r}")  # pragma: no cover
     return 2  # pragma: no cover
 
@@ -95,6 +119,8 @@ def _generate(args: argparse.Namespace) -> int:
     try:
         if out_path.suffix.lower() == ".waypoints":
             write_waypoints(params, waypoints, out_path)
+        elif out_path.suffix.lower() == ".json":
+            _write_waypoints_json(params, waypoints, out_path)
         else:
             plan = build_plan(params, waypoints, zones)
             write_plan(plan, out_path)
@@ -113,6 +139,55 @@ def _generate(args: argparse.Namespace) -> int:
         f"{fence_note})"
     )
     return 0
+
+
+def _dump_fences(args: argparse.Namespace) -> int:
+    try:
+        zones = load_fence_files(args.fence)
+    except FileNotFoundError as exc:
+        print(f"error: fence file not found: {exc.filename}", file=sys.stderr)
+        return 2
+    except ValueError as exc:  # FenceError
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    payload = json.dumps(
+        {
+            "zones": [
+                {
+                    "name": z.name,
+                    "kind": z.kind,
+                    "min_alt_m": z.min_alt_m,
+                    "source": z.source,
+                    "polygon": [[lat, lon] for lat, lon in z.polygon],
+                }
+                for z in zones
+            ]
+        },
+        indent=2,
+    )
+    if args.output:
+        Path(args.output).write_text(payload, encoding="utf-8")
+    else:
+        print(payload)
+    return 0
+
+
+def _write_waypoints_json(params: SurveyParams, waypoints: list, out_path: Path) -> None:
+    """Raw serpentine output for in-process consumers (PGC Solar Scan item).
+
+    Waypoints are ordered flight-line pairs: [entry, exit, entry, exit, ...].
+    """
+    out_path.write_text(
+        json.dumps(
+            {
+                "altitude_m": params.altitude_m,
+                "waypoints": [[lat, lon] for lat, lon in waypoints],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
 
 
 if __name__ == "__main__":

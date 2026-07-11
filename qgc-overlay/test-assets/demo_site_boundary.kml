@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>PGC demo fence library — site boundary</name>
+    <Placemark>
+      <name>Site boundary [inclusion]</name>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              -84.46800,33.88600,0
+              -84.43200,33.88600,0
+              -84.43200,33.90500,0
+              -84.46800,33.90500,0
+              -84.46800,33.88600,0
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+  </Document>
+</kml>

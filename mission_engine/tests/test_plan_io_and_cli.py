@@ -104,6 +104,46 @@ class TestCli(unittest.TestCase):
             self.assertEqual(rc, 0)
             self.assertTrue((Path(tmp) / "field.plan").exists())
 
+    def test_json_waypoints_output(self):
+        # .json output = raw waypoint list for the PGC Solar Scan pattern item.
+        with tempfile.TemporaryDirectory() as tmp:
+            in_path = Path(tmp) / "params.json"
+            out_path = Path(tmp) / "wpts.json"
+            in_path.write_text(json.dumps(PARAMS_DICT), encoding="utf-8")
+
+            rc = cli.main(["generate", "-i", str(in_path), "-o", str(out_path)])
+
+            self.assertEqual(rc, 0)
+            data = json.loads(out_path.read_text(encoding="utf-8"))
+            self.assertEqual(data["altitude_m"], PARAMS_DICT["altitude_m"])
+            self.assertGreaterEqual(len(data["waypoints"]), 2)
+            self.assertEqual(len(data["waypoints"]) % 2, 0)  # entry/exit pairs
+            for wp in data["waypoints"]:
+                self.assertEqual(len(wp), 2)  # [lat, lon]
+
+    def test_fences_dump(self):
+        # `fences` subcommand = zone dump for GCS map rendering.
+        kml = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<kml xmlns="http://www.opengis.net/kml/2.2"><Document><Placemark>'
+            "<name>Test zone [keepout]</name><Polygon><outerBoundaryIs><LinearRing>"
+            "<coordinates>-84.1,33.1,0 -84.0,33.1,0 -84.0,33.2,0 -84.1,33.2,0 -84.1,33.1,0</coordinates>"
+            "</LinearRing></outerBoundaryIs></Polygon></Placemark></Document></kml>"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            kml_path = Path(tmp) / "zones.kml"
+            out_path = Path(tmp) / "zones.json"
+            kml_path.write_text(kml, encoding="utf-8")
+
+            rc = cli.main(["fences", "-f", str(kml_path), "-o", str(out_path)])
+
+            self.assertEqual(rc, 0)
+            zones = json.loads(out_path.read_text(encoding="utf-8"))["zones"]
+            self.assertEqual(len(zones), 1)
+            self.assertEqual(zones[0]["kind"], "keepout")
+            self.assertEqual(zones[0]["name"], "Test zone [keepout]")
+            self.assertEqual(len(zones[0]["polygon"]), 4)
+
     def test_invalid_params_exit_code(self):
         with tempfile.TemporaryDirectory() as tmp:
             in_path = Path(tmp) / "params.json"

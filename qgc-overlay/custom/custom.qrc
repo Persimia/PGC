@@ -1,0 +1,17 @@
+<RCC>
+    <qresource prefix="/custom/qml">
+        <file alias="PGCSolarScanEditor.qml">res/PGCSolarScanEditor.qml</file>
+        <file alias="PGCSolarScanMapVisual.qml">res/PGCSolarScanMapVisual.qml</file>
+    </qresource>
+    <qresource prefix="/custom/img">
+        <file alias="persimia_mark.png">res/img/persimia_mark.png</file>
+        <file alias="persimia_logo_horizontal.png">res/img/persimia_logo_horizontal.png</file>
+    </qresource>
+    <!-- Shadow stock assets via CustomOverrideInterceptor: :/Custom + <stock path> -->
+    <qresource prefix="/Custom/res">
+        <file alias="QGCLogoFull.svg">res/PGCLogo.svg</file>
+    </qresource>
+    <!-- Note: shadowing ":/res/qgroundcontrol.ico" here does NOT work — upstream's
+         registration wins. The runtime window icon is instead re-set in
+         CustomPlugin::createQmlApplicationEngine. -->
+</RCC>

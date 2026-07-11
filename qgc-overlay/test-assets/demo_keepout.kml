@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>PGC demo fence library</name>
+    <Placemark>
+      <name>Demo substation [keepout]</name>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              -84.4530,33.8955,0
+              -84.4515,33.8955,0
+              -84.4515,33.8965,0
+              -84.4530,33.8965,0
+              -84.4530,33.8955,0
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+  </Document>
+</kml>

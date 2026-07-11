@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>PGC demo fence library — transmission line</name>
+    <Placemark>
+      <name>Transmission line corridor [keepout]</name>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              -84.45262,33.89235,0
+              -84.45238,33.89265,0
+              -84.44688,33.89915,0
+              -84.44712,33.89885,0
+              -84.45262,33.89235,0
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+  </Document>
+</kml>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>PGC demo fence library — admin building</name>
+    <Placemark>
+      <name>Admin building — overfly at 40 m or above [min_alt=40]</name>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              -84.44450,33.89550,0
+              -84.44350,33.89550,0
+              -84.44400,33.89650,0
+              -84.44450,33.89550,0
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+  </Document>
+</kml>

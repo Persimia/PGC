@@ -1,0 +1,85 @@
+diff --git a/src/API/QGCCorePlugin.h b/src/API/QGCCorePlugin.h
+index daaf25c..b714479 100644
+--- a/src/API/QGCCorePlugin.h
++++ b/src/API/QGCCorePlugin.h
+@@ -15,6 +15,7 @@
+ 
+ #include "QGCPalette.h"
+ 
++class ComplexMissionItem;
+ class FactMetaData;
+ class LinkInterface;
+ class PlanMasterController;
+@@ -157,6 +158,16 @@ class QGCCorePlugin : public QObject
+     /// @return Complex items to be made available to user
+     virtual QStringList complexMissionItemNames(Vehicle *vehicle, const QStringList &complexMissionItemNames) { Q_UNUSED(vehicle); return complexMissionItemNames; }
+ 
++    /// PGC backport of upstream master's custom complex item factory (see QGC master
++    /// QGCCorePlugin::createComplexMissionItem). Called by MissionController when an
++    /// item name / plan-file complexItemType is not one of the built-ins.
++    /// @return New item (caller owns) or nullptr if the type is unknown to the plugin.
++    virtual ComplexMissionItem *createComplexMissionItem(const QString &complexItemType, PlanMasterController *masterController, bool flyView, const QString &kmlOrShpFile = QString())
++    {
++        Q_UNUSED(complexItemType); Q_UNUSED(masterController); Q_UNUSED(flyView); Q_UNUSED(kmlOrShpFile);
++        return nullptr;
++    }
++
+     /// Returns the standard list of first run prompt ids for possible display. Actual display is based on the
+     /// current AppSettings::firstRunPromptIds value. The order of this list also determines the order the prompts
+     /// will be displayed in.
+diff --git a/src/MissionManager/MissionController.cc b/src/MissionManager/MissionController.cc
+index b8f9e5c..6f3f38a 100644
+--- a/src/MissionManager/MissionController.cc
++++ b/src/MissionManager/MissionController.cc
+@@ -454,8 +454,14 @@ VisualMissionItem* MissionController::insertComplexMissionItem(QString itemName,
+     } else if (itemName == CorridorScanComplexItem::name) {
+         newItem = new CorridorScanComplexItem(_masterController, _flyView, QString() /* kmlOrShpFile */);
+     } else {
+-        qWarning() << "Internal error: Unknown complex item:" << itemName;
+-        return nullptr;
++        // PGC backport: give the custom plugin a chance to create the item (upstream master hook)
++        newItem = QGCCorePlugin::instance()->createComplexMissionItem(itemName, _masterController, _flyView);
++        if (newItem) {
++            newItem->setCoordinate(mapCenterCoordinate);
++        } else {
++            qWarning() << "Internal error: Unknown complex item:" << itemName;
++            return nullptr;
++        }
+     }
+ 
+     _insertComplexMissionItemWorker(mapCenterCoordinate, newItem, visualItemIndex, makeCurrentItem);
+@@ -474,8 +480,12 @@ VisualMissionItem* MissionController::insertComplexMissionItemFromKMLOrSHP(QStri
+     } else if (itemName == CorridorScanComplexItem::name) {
+         newItem = new CorridorScanComplexItem(_masterController, _flyView, file);
+     } else {
+-        qWarning() << "Internal error: Unknown complex item:" << itemName;
+-        return nullptr;
++        // PGC backport: give the custom plugin a chance to create the item (upstream master hook)
++        newItem = QGCCorePlugin::instance()->createComplexMissionItem(itemName, _masterController, _flyView, file);
++        if (!newItem) {
++            qWarning() << "Internal error: Unknown complex item:" << itemName;
++            return nullptr;
++        }
+     }
+ 
+     _insertComplexMissionItemWorker(QGeoCoordinate(), newItem, visualItemIndex, makeCurrentItem);
+@@ -876,7 +886,18 @@ bool MissionController::_loadJsonMissionFileV2(const QJsonObject& json, QmlObjec
+                 qCDebug(MissionControllerLog) << "Corridor Scan load complete: nextSequenceNumber" << nextSequenceNumber;
+                 visualItems->append(corridorItem);
+             } else {
+-                errorString = tr("Unsupported complex item type: %1").arg(complexItemType);
++                // PGC backport: give the custom plugin a chance to load the item (upstream master hook)
++                ComplexMissionItem* customItem = QGCCorePlugin::instance()->createComplexMissionItem(complexItemType, _masterController, _flyView);
++                if (customItem) {
++                    qCDebug(MissionControllerLog) << "Loading custom complex item" << complexItemType << ": nextSequenceNumber" << nextSequenceNumber;
++                    if (!customItem->load(itemObject, nextSequenceNumber++, errorString)) {
++                        return false;
++                    }
++                    nextSequenceNumber = customItem->lastSequenceNumber() + 1;
++                    visualItems->append(customItem);
++                } else {
++                    errorString = tr("Unsupported complex item type: %1").arg(complexItemType);
++                }
+             }
+         } else {
+             errorString = tr("Unknown item type: %1").arg(itemType);

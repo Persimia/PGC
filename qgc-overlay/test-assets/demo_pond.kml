@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>PGC demo fence library — retention pond</name>
+    <Placemark>
+      <name>Retention pond [keepout]</name>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              -84.45600,33.89822,0
+              -84.45539,33.89801,0
+              -84.45513,33.89750,0
+              -84.45539,33.89699,0
+              -84.45600,33.89678,0
+              -84.45661,33.89699,0
+              -84.45687,33.89750,0
+              -84.45661,33.89801,0
+              -84.45600,33.89822,0
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+  </Document>
+</kml>

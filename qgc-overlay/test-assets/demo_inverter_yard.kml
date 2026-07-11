@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>PGC demo fence library — inverter yard</name>
+    <Placemark>
+      <name>Inverter yard (L-shape) [keepout]</name>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              -84.44850,33.89300,0
+              -84.44750,33.89300,0
+              -84.44750,33.89350,0
+              -84.44800,33.89350,0
+              -84.44800,33.89400,0
+              -84.44850,33.89400,0
+              -84.44850,33.89300,0
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+  </Document>
+</kml>

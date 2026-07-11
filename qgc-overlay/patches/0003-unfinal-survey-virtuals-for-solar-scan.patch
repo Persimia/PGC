@@ -1,0 +1,37 @@
+diff --git a/src/MissionManager/SurveyComplexItem.h b/src/MissionManager/SurveyComplexItem.h
+index 1c7e132..0301f88 100644
+--- a/src/MissionManager/SurveyComplexItem.h
++++ b/src/MissionManager/SurveyComplexItem.h
+@@ -41,8 +41,8 @@ class SurveyComplexItem : public TransectStyleComplexItem
+ 
+     // Overrides from ComplexMissionItem
+     QString         patternName         (void) const final { return name; }
+-    bool            load                (const QJsonObject& complexObject, int sequenceNumber, QString& errorString) final;
+-    QString         mapVisualQML        (void) const final { return QStringLiteral("SurveyMapVisual.qml"); }
++    bool            load                (const QJsonObject& complexObject, int sequenceNumber, QString& errorString) override; // PGC backport: was final (see qgc-overlay README)
++    QString         mapVisualQML        (void) const override { return QStringLiteral("SurveyMapVisual.qml"); } // PGC backport: was final (see qgc-overlay README)
+     QString         presetsSettingsGroup(void) { return settingsGroup; }
+     void            savePreset          (const QString& name);
+     void            loadPreset          (const QString& name);
+@@ -51,7 +51,7 @@ class SurveyComplexItem : public TransectStyleComplexItem
+     void            setCenterCoordinate (const QGeoCoordinate& coordinate) { _surveyAreaPolygon.setCenter(coordinate); }
+ 
+     // Overrides from TransectStyleComplexItem
+-    void    save                (QJsonArray&  planItems) final;
++    void    save                (QJsonArray&  planItems) override; // PGC backport: was final (see qgc-overlay README)
+     bool    specifiesCoordinate (void) const final { return true; }
+     double  timeBetweenShots    (void) final;
+ 
+@@ -89,8 +89,11 @@ class SurveyComplexItem : public TransectStyleComplexItem
+ private slots:
+     void _updateWizardMode              (void);
+ 
++protected:
+     // Overrides from TransectStyleComplexItem
+-    void _rebuildTransectsPhase1        (void) final;
++    // PGC backport: was `private slots` + final; protected/override so
++    // PGCSolarScanItem can override and call through (see qgc-overlay README)
++    void _rebuildTransectsPhase1        (void) override;
+     void _recalcCameraShots             (void) final;
+ 
+ private:

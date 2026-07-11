@@ -5,7 +5,7 @@ Order matters roughly top to bottom. Design doc references in parentheses.
 
 ## 1. Repo + engine running locally (30 min)
 
-- [ ] Create the Git remote (GitHub org), push this repo, confirm CI goes green
+- [x] Create the Git remote (GitHub org), push this repo, confirm CI goes green
       on the first push (proves the Windows + Linux matrix works).
 - [x] Follow README Quickstart: venv, `pip install -e .`, tests pass locally.
       *(2026-07-09: verified fresh install on Linux/Py3.12 — 37 tests pass +
@@ -37,12 +37,19 @@ Reference: https://ardupilot.org/dev/docs/sitl-simulator-software-in-the-loop.ht
 
 Reference: QGC dev guide → "Getting Started with Source and Builds".
 
-- [ ] Install the **exact Qt version the QGC docs specify** (6.10.1 at time of
-      writing). Other versions = instability (design doc 5.1).
-- [ ] Build + run stock QGC on Linux first (easier), then Windows.
-- [ ] Skim the in-tree `custom-example/` — this is the overlay mechanism we
-      will use in Phase 2. Estimate nothing until you've read it.
-- [ ] Capture every setup step you had to figure out in `qgc-overlay/README.md`
+- [x] Install the **exact Qt version the QGC tag specifies** — for v5.0.8
+      that is **6.8.3** per its CI workflow, not the 6.10.1 the master docs
+      mention. *(2026-07-09: installed via aqtinstall to `C:\Qt`, fully
+      unattended, no Qt account — recipe in `qgc-overlay/README.md`.)*
+- [x] Build + run stock QGC on **Windows** first (it's the dev machine;
+      Linux build folds into Phase 2 CI work).
+      *(2026-07-09: QGC v5.0.8 built from source at `C:\dev\qgc-build` with
+      MSVC Build Tools 2026 + Qt 6.8.3 + Ninja; GStreamer video backend
+      deferred to the Herelink spike — QtMultimedia backend for now.)*
+- [x] Skim the in-tree `custom-example/` — this is the overlay mechanism we
+      will use in Phase 2. *(Read 2026-07-09; structure notes in
+      `qgc-overlay/README.md`.)*
+- [x] Capture every setup step you had to figure out in `qgc-overlay/README.md`
       so the second dev doesn't repeat the slog; CI-scripting comes in Phase 2.
 
 ## 4. Herelink link spike (R9 — one field afternoon)
@@ -51,15 +58,22 @@ Reference: QGC dev guide → "Getting Started with Source and Builds".
       (Herelink shares telemetry over its WiFi hotspot / USB tether, UDP 14550).
 - [ ] Confirm the video stream: find the ground unit's RTSP URL, verify it
       plays in QGC's video settings on **both** Windows and Linux laptops.
+      *(Use the prebuilt QGC in `C:\Program Files\QGroundControl` for this —
+      it ships the full GStreamer stack; our source build currently doesn't.)*
 - [ ] Record findings (URLs, ports, quirks) in the design doc under OQ2, and
       note which link types drone-only clients actually have (serial radios?).
+      *(Also evaluate upstream's `QGC_ENABLE_HERELINK` CMake option.)*
 
 ## 5. Non-code homework (parallel, ~1 hr each)
 
-- [ ] Book the licensing hour with counsel — Route A vs B (D7/OQ3).
+- [ ] Book the licensing hour with counsel — **Route A decided (2026-07-09)**;
+      counsel visit is now a sanity-check before first client ship (N7), not
+      a route decision.
 - [ ] Collect camera/gimbal specs (sensor size, focal length, resolution) for
       the GSD math milestone (OQ8).
-- [ ] Pick a product name (OQ1) — it gates branding work in Phase 2.
+- [x] Pick a product name (OQ1) — **PGC** (2026-07-09). Branding assets in
+      `Logos/`; primary mark `Persimia_mark_RGB.png`; orange accent, exact
+      hex to follow (placeholder `#EE4023` sampled from the mark).
 
 ## Done = Phase 0 exit
 

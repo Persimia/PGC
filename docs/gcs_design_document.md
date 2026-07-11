@@ -229,21 +229,24 @@ mission_engine/
 | D4 | Box = local server (router, video, API, engine service) | Everything on laptop; cloud | Fits DiaB reality; local-first security story | Accepted |
 | D5 | Keep HA short-term as hardware driver behind Box API | Immediate HA removal; building GCS on HA | Decouples now, defers migration cost | Accepted |
 | D6 | Manual flight stays on Herelink | Joystick/FPV in our app | Removes hard-latency requirement; manual is being phased out | Accepted |
-| D7 | License route: GPLv3 build vs Apache 2.0 + commercial Qt | — | See §7 | **Pending counsel** |
+| D7 | License route = **Route A: GPLv3 build** (free Qt) | Route B: Apache 2.0 + commercial Qt | See §7; moat stays outside the app per D2, so GPL exposure ≈ QML skin + panels | Accepted (2026-07-09) — counsel sanity-check before first client ship per N7 |
+| D12 | Product name = **PGC**; branding from Persimia identity (`Logos/`, primary mark `Persimia_mark_RGB.png`; orange accent — placeholder `#EE4023` sampled from mark until exact brand hex provided) | Separate product brand | Ships under company identity; unblocks Phase 2 branding | Accepted (2026-07-09) |
+| D13 | Mission Studio = **native QGC pattern item calling the engine** ("Solar Scan" `ComplexMissionItem` shim in the overlay; rebuild shells out to engine CLI via QProcess) | (A) separate tab with own drawing UI; (C) porting generation into C++; (D) CLI-only; (E) thin generate-and-load panel | Native UX beside Survey/Corridor; engine stays proprietary behind process boundary (Route A-safe) and reusable by box/fleet (D2); upstream master already ships the required `createComplexMissionItem()` plugin hook — we backport it to v5.0.8 as a carried patch that dissolves on the next version bump. Full comparison in `docs/qgc_mission_planning_inventory.md` + chat 2026-07-10. Fallback if shim proves hostile: option E (same engine flow, thin panel) | Accepted (2026-07-10) |
 | D8 | Maps: self-hosted/OSM-style tiles by default | Google/Bing default | Offline requirement + provider ToS risk | Proposed |
 | D9 | Fleet tier = separate self-hosted web console above Box APIs | Extending QGC into an ops center; cloud SaaS | QGC is single-operator by design; deep divergence breaks N8; self-hosting preserves local-first | Accepted (build post-v1) |
 | D10 | Fleet control depth = monitor + dispatch; no remote manual piloting | Joystick-over-internet | C2 latency/reliability/liability; manual flight is being phased out anyway | Accepted (revisit only if manual returns) |
 | D11 | Fences = external KML libraries (Google Earth), validated at generation; conflicts fail loudly, never auto-clipped/rerouted | Fences embedded per-mission; Shapely-based clipping around keep-outs | Fences are durable client assets (company-wide/per-site) reused across missions; refusing beats silently altering a flight path near hazards; validation needs only segment tests, preserving the zero-dependency engine. Zone types: [keepout], [min_alt=N] (overfly permitted at/above N), [inclusion] | Accepted (2026-07-09) |
 
-## 7. Licensing (decision pending — route options)
+## 7. Licensing (decided 2026-07-09: **Route A — GPLv3 build**)
 
-*Not legal advice. One hour with counsel before first client ship (N7).*
+*Not legal advice. One hour with counsel before first client ship (N7) to
+sanity-check this decision.*
 
 - **QGC is dual-licensed Apache 2.0 / GPLv3** — we choose which to comply with.
 - **Route A — GPLv3 build (free Qt):** our overlay code compiled into the app becomes GPLv3; we must offer corresponding source *to clients who receive binaries* (not the public). GPL stops at the process boundary → Mission Engine, Box API, video pipeline stay proprietary. Trademark/brand unaffected. Exposure ≈ QML skin + panels, which is not our moat.
 - **Route B — Apache 2.0 build (proprietary overlay):** QGC's docs state a commercial Qt license is required for Apache builds (order of a few $k per developer per year — verify current pricing/tiers). Keeps overlay code closed.
 - **Supporting cast:** MAVLink (MIT), MediaMTX (MIT), Shapely (BSD) — fine. pymavlink & mavlink-router (LGPL) — fine as used. ArduPilot (GPLv3) — separate program on the vehicle, no effect on us. **GStreamer plugin set** we redistribute needs a license/codec review. Upstream contributions must be offered under both QGC licenses.
-- **Working recommendation:** Route A unless counsel or leadership objects; revisit if we ever put moat-level logic inside the app (we shouldn't — see D2).
+- **Decision (2026-07-09):** Route A locked (D7). Consequences: overlay code compiled into the app is GPLv3 and corresponding source is offered to clients who receive binaries; no commercial Qt license needed; revisit only if moat-level logic ever moves inside the app (it must not — see D2).
 
 ## 8. Risks & Mitigations
 
@@ -294,9 +297,9 @@ Self-hosted web console: monitor first (sites map, statuses, video), dispatch se
 
 ## 10. Open Questions
 
-- [ ] OQ1: Product name / branding assets?
+- [x] OQ1: Product name / branding assets? → **PGC** (2026-07-09). Assets in `Logos/`; primary mark `Persimia_mark_RGB.png`; orange accent, exact hex TBD (placeholder `#EE4023` sampled from mark; secondary `#3D150B` dark maroon, `#802217` rust).
 - [ ] OQ2: Drone-only clients' physical links — Herelink ground unit only, or also serial radios (RFD900 etc.)? (drives F11 scope + Phase 0 spike)
-- [ ] OQ3: License route (D7) — Route A or B? Counsel booked?
+- [x] OQ3: License route (D7) — **Route A** (2026-07-09). Counsel sanity-check still to book before first client ship (N7).
 - [ ] OQ4: Box OS/update strategy — keep HA-OS short-term or move to Debian+systemd now?
 - [ ] OQ5: Tile source & offline caching workflow for client sites?
 - [ ] OQ6: Box API auth mechanism (token vs per-client certs) and future console user model (roles? read-only viewers?) — auth itself is now required day one (FC2)
