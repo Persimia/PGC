@@ -36,6 +36,7 @@ class PGCSolarScanItem : public SurveyComplexItem
 
 public:
     PGCSolarScanItem(PlanMasterController *masterController, bool flyView, const QString &kmlOrShpFile);
+    ~PGCSolarScanItem();
 
     QString lastEngineError() const { return _lastEngineError; }
     int fenceFileCount() const { return _fenceFileCount; }
@@ -61,12 +62,23 @@ protected:
 private:
     QString _engineCliPath() const;
     QStringList _fenceFiles();
-    bool _rebuildTransectsFromEngine();
     void _setEngineError(const QString &error);
     void _refreshFenceZones(const QStringList &fenceFiles);
+    QByteArray _buildParamsJson();
+    void _requestEngineRun(const QString &key, const QByteArray &paramsJson, const QStringList &fenceFiles);
+    void _engineRunFinished(int exitCode, int exitStatus);
 
     QString _lastEngineError;
     int _fenceFileCount = 0;
     QVariantList _fenceZones;
     QString _fenceZonesKey; ///< fence file list the current _fenceZones was loaded from
+
+    // Async engine state: one request in flight at a time, results cached by
+    // a params hash. During regeneration the previous (stale) transects stay
+    // on the map so polygon drags feel smooth.
+    class QProcess *_engineProcess = nullptr;
+    QString _inFlightKey;
+    QString _appliedKey;
+    QString _wptsPath;
+    QList<QList<CoordInfo_t>> _engineTransects;
 };

@@ -13,6 +13,7 @@
 #include "QGCLoggingCategory.h"
 
 #include <QtCore/QCoreApplication>
+#include <QtCore/QCryptographicHash>
 #include <QtCore/QDir>
 #include <QtCore/QFile>
 #include <QtCore/QJsonArray>
@@ -31,6 +32,14 @@ PGCSolarScanItem::PGCSolarScanItem(PlanMasterController *masterController, bool 
     : SurveyComplexItem(masterController, flyView, kmlOrShpFile)
 {
     _editorQml = QStringLiteral("qrc:/custom/qml/PGCSolarScanEditor.qml");
+}
+
+PGCSolarScanItem::~PGCSolarScanItem()
+{
+    if (_engineProcess && _engineProcess->state() != QProcess::NotRunning) {
+        _engineProcess->disconnect(this);
+        _engineProcess->kill();
+    }
 }
 
 void PGCSolarScanItem::save(QJsonArray &planItems)
@@ -58,6 +67,12 @@ QString PGCSolarScanItem::_engineCliPath() const
     const QString envPath = QProcessEnvironment::systemEnvironment().value(QStringLiteral("PGC_ENGINE_CLI"));
     if (!envPath.isEmpty() && QFile::exists(envPath)) {
         return envPath;
+    }
+
+    // Frozen onedir build staged by mission_engine/build-exe.ps1 -StageTo
+    const QString staged = QCoreApplication::applicationDirPath() + QStringLiteral("/pgc-engine/mission-engine.exe");
+    if (QFile::exists(staged)) {
+        return staged;
     }
 
     const QString bundled = QCoreApplication::applicationDirPath() + QStringLiteral("/mission-engine.exe");
@@ -151,31 +166,10 @@ void PGCSolarScanItem::_setEngineError(const QString &error)
     }
 }
 
-void PGCSolarScanItem::_rebuildTransectsPhase1()
+QByteArray PGCSolarScanItem::_buildParamsJson()
 {
-    if (!_rebuildTransectsFromEngine()) {
-        // Engine unavailable (not installed / infrastructure failure): behave
-        // as stock Survey so the pattern tool is never dead. Refusals do NOT
-        // take this path — see _rebuildTransectsFromEngine.
-        SurveyComplexItem::_rebuildTransectsPhase1();
-    }
-}
-
-bool PGCSolarScanItem::_rebuildTransectsFromEngine()
-{
-    const QString cli = _engineCliPath();
-    if (cli.isEmpty()) {
-        qCWarning(PGCSolarScanLog) << "Mission Engine CLI not found (set PGC_ENGINE_CLI); falling back to stock Survey generation";
-        return false;
-    }
-
-    const QList<QGeoCoordinate> polygon = surveyAreaPolygon()->coordinateList();
-    if (polygon.count() < 3) {
-        return false;
-    }
-
     QJsonArray polygonJson;
-    for (const QGeoCoordinate &vertex : polygon) {
+    for (const QGeoCoordinate &vertex : surveyAreaPolygon()->coordinateList()) {
         polygonJson.append(QJsonArray({ vertex.latitude(), vertex.longitude() }));
     }
 
@@ -184,78 +178,135 @@ bool PGCSolarScanItem::_rebuildTransectsFromEngine()
     params[QStringLiteral("altitude_m")] = cameraCalc()->distanceToSurface()->rawValue().toDouble();
     params[QStringLiteral("spacing_m")] = cameraCalc()->adjustedFootprintSide()->rawValue().toDouble();
     params[QStringLiteral("heading_deg")] = gridAngle()->rawValue().toDouble();
+    return QJsonDocument(params).toJson();
+}
+
+void PGCSolarScanItem::_rebuildTransectsPhase1()
+{
+    const QString cli = _engineCliPath();
+    if (cli.isEmpty()) {
+        // Engine not installed: behave as stock Survey so the pattern tool is
+        // never dead. Refusals do NOT take this path.
+        qCWarning(PGCSolarScanLog) << "Mission Engine CLI not found (set PGC_ENGINE_CLI); falling back to stock Survey generation";
+        SurveyComplexItem::_rebuildTransectsPhase1();
+        return;
+    }
+
+    if (surveyAreaPolygon()->coordinateList().count() < 3) {
+        _transects.clear();
+        return;
+    }
+
+    const QStringList fenceFiles = _fenceFiles();
+    const QByteArray paramsJson = _buildParamsJson();
+    const QString key = QString::fromLatin1(QCryptographicHash::hash(
+        paramsJson + fenceFiles.join(QLatin1Char(';')).toUtf8(), QCryptographicHash::Md5).toHex());
+
+    // Serve from cache (also the path taken when our own completion handler
+    // re-triggers the rebuild), else show the previous result while the
+    // engine regenerates in the background — no UI stall on polygon drags.
+    _transects = _engineTransects;
+    if (key != _appliedKey) {
+        _requestEngineRun(key, paramsJson, fenceFiles);
+    }
+}
+
+void PGCSolarScanItem::_requestEngineRun(const QString &key, const QByteArray &paramsJson, const QStringList &fenceFiles)
+{
+    if (_engineProcess && _engineProcess->state() != QProcess::NotRunning) {
+        if (_inFlightKey == key) {
+            return; // identical request already running
+        }
+        // Newer params supersede the in-flight run
+        _engineProcess->disconnect(this);
+        _engineProcess->kill();
+        _engineProcess->deleteLater();
+        _engineProcess = nullptr;
+    }
 
     const QString tmpDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     const QString paramsPath = tmpDir + QStringLiteral("/pgc_solarscan_params.json");
-    const QString wptsPath = tmpDir + QStringLiteral("/pgc_solarscan_wpts.json");
+    _wptsPath = tmpDir + QStringLiteral("/pgc_solarscan_wpts.json");
 
     QFile paramsFile(paramsPath);
     if (!paramsFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         qCWarning(PGCSolarScanLog) << "Cannot write engine params file" << paramsPath;
-        return false;
+        return;
     }
-    paramsFile.write(QJsonDocument(params).toJson());
+    paramsFile.write(paramsJson);
     paramsFile.close();
 
-    QStringList args = { QStringLiteral("generate"), QStringLiteral("-i"), paramsPath, QStringLiteral("-o"), wptsPath };
-    const QStringList fenceFiles = _fenceFiles();
+    QStringList args = { QStringLiteral("generate"), QStringLiteral("-i"), paramsPath, QStringLiteral("-o"), _wptsPath };
     for (const QString &fence : fenceFiles) {
         args << QStringLiteral("--fence") << fence;
     }
 
-    QProcess engine;
-    engine.start(cli, args);
-    if (!engine.waitForStarted(3000) || !engine.waitForFinished(10000)) {
-        engine.kill();
-        qCWarning(PGCSolarScanLog) << "Mission Engine timed out or failed to start:" << cli;
-        return false;
-    }
+    _inFlightKey = key;
+    _engineProcess = new QProcess(this);
+    connect(_engineProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this](int exitCode, QProcess::ExitStatus exitStatus) {
+        _engineRunFinished(exitCode, static_cast<int>(exitStatus));
+    });
+    _engineProcess->start(_engineCliPath(), args);
+}
 
-    if (engine.exitStatus() != QProcess::NormalExit) {
+void PGCSolarScanItem::_engineRunFinished(int exitCode, int exitStatus)
+{
+    QProcess *engine = _engineProcess;
+    if (!engine) {
+        return;
+    }
+    _engineProcess = nullptr;
+    engine->deleteLater();
+
+    const QString key = _inFlightKey;
+    _inFlightKey.clear();
+
+    if (static_cast<QProcess::ExitStatus>(exitStatus) != QProcess::NormalExit) {
         qCWarning(PGCSolarScanLog) << "Mission Engine crashed";
-        return false;
+        return; // keep previous result; next param change retries
     }
 
-    if (engine.exitCode() != 0) {
+    if (exitCode != 0) {
         // Engine REFUSED (exit 2: keep-out conflict or invalid parameters).
         // Fail loud per D11: clear the flight path and tell the operator.
         // Falling back to stock generation here could draw a path through a
         // hazard, so we intentionally do not.
-        const QString stderrText = QString::fromUtf8(engine.readAllStandardError()).trimmed();
-        qCWarning(PGCSolarScanLog) << "Mission Engine refused (exit" << engine.exitCode() << "):" << stderrText;
-        _transects.clear();
+        const QString stderrText = QString::fromUtf8(engine->readAllStandardError()).trimmed();
+        qCWarning(PGCSolarScanLog) << "Mission Engine refused (exit" << exitCode << "):" << stderrText;
+        _engineTransects.clear();
+        _appliedKey = key; // a refusal IS the result for these params
         _setEngineError(stderrText.isEmpty() ? tr("Mission Engine rejected the mission (no details)") : stderrText);
-        return true; // handled — do not fall back
+    } else {
+        QFile wptsFile(_wptsPath);
+        if (!wptsFile.open(QIODevice::ReadOnly)) {
+            qCWarning(PGCSolarScanLog) << "Engine output missing:" << _wptsPath;
+            return;
+        }
+        const QJsonArray waypoints = QJsonDocument::fromJson(wptsFile.readAll()).object().value(QStringLiteral("waypoints")).toArray();
+        wptsFile.close();
+        if (waypoints.count() < 2 || (waypoints.count() % 2) != 0) {
+            qCWarning(PGCSolarScanLog) << "Engine returned malformed waypoint list, count:" << waypoints.count();
+            return;
+        }
+
+        // Engine waypoints are ordered [entry, exit] pairs, one per flight line.
+        _engineTransects.clear();
+        for (int i = 0; i < waypoints.count(); i += 2) {
+            const QJsonArray entry = waypoints[i].toArray();
+            const QJsonArray exit = waypoints[i + 1].toArray();
+
+            QList<CoordInfo_t> transect;
+            transect.append(CoordInfo_t{ QGeoCoordinate(entry[0].toDouble(), entry[1].toDouble()), CoordTypeSurveyEntry });
+            transect.append(CoordInfo_t{ QGeoCoordinate(exit[0].toDouble(), exit[1].toDouble()), CoordTypeSurveyExit });
+            _engineTransects.append(transect);
+        }
+        _appliedKey = key;
+        _setEngineError(QString());
+        qCDebug(PGCSolarScanLog) << "Engine generated" << _engineTransects.count() << "flight lines";
     }
 
-    QFile wptsFile(wptsPath);
-    if (!wptsFile.open(QIODevice::ReadOnly)) {
-        qCWarning(PGCSolarScanLog) << "Engine output missing:" << wptsPath;
-        return false;
-    }
-    const QJsonDocument doc = QJsonDocument::fromJson(wptsFile.readAll());
-    wptsFile.close();
-
-    const QJsonArray waypoints = doc.object().value(QStringLiteral("waypoints")).toArray();
-    if (waypoints.count() < 2 || (waypoints.count() % 2) != 0) {
-        qCWarning(PGCSolarScanLog) << "Engine returned malformed waypoint list, count:" << waypoints.count();
-        return false;
-    }
-
-    // Engine waypoints are ordered [entry, exit] pairs, one pair per flight line.
-    _transects.clear();
-    for (int i = 0; i < waypoints.count(); i += 2) {
-        const QJsonArray entry = waypoints[i].toArray();
-        const QJsonArray exit = waypoints[i + 1].toArray();
-
-        QList<CoordInfo_t> transect;
-        transect.append(CoordInfo_t{ QGeoCoordinate(entry[0].toDouble(), entry[1].toDouble()), CoordTypeSurveyEntry });
-        transect.append(CoordInfo_t{ QGeoCoordinate(exit[0].toDouble(), exit[1].toDouble()), CoordTypeSurveyExit });
-        _transects.append(transect);
-    }
-
-    _setEngineError(QString());
-    qCDebug(PGCSolarScanLog) << "Engine generated" << _transects.count() << "flight lines,"
-                             << fenceFiles.count() << "fence file(s) validated";
-    return true;
+    // Push the fresh result through the normal rebuild pipeline. String-based
+    // queued invoke: _rebuildTransects is a private slot on the base class.
+    QMetaObject::invokeMethod(this, "_rebuildTransects", Qt::QueuedConnection);
 }

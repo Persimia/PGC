@@ -299,7 +299,8 @@ Self-hosted web console: monitor first (sites map, statuses, video), dispatch se
 
 - [x] OQ1: Product name / branding assets? → **PGC** (2026-07-09). Assets in `Logos/`; primary mark `Persimia_mark_RGB.png`; orange accent, exact hex TBD (placeholder `#EE4023` sampled from mark; secondary `#3D150B` dark maroon, `#802217` rust).
 - [ ] OQ2: Drone-only clients' physical links — Herelink ground unit only, or also serial radios (RFD900 etc.)? (drives F11 scope + Phase 0 spike)
-- [x] OQ3: License route (D7) — **Route A** (2026-07-09). Counsel sanity-check still to book before first client ship (N7).
+- [x] OQ3: License route (D7) — **Route A** (2026-07-09). Counsel hour completed 2026-07-11; Route A confirmed.
+- [ ] OQ11: Fence UX (added 2026-07-11): operators configure a company fence folder (or file location) and its zones render on the map **as soon as PGC opens** — globally, not only inside the Solar Scan pattern item as today. Needs: a settings entry for the folder path, an app-level map overlay (Plan + Fly views), and refresh on folder change. The engine `fences` JSON dump is already the data source.
 - [ ] OQ4: Box OS/update strategy — keep HA-OS short-term or move to Debian+systemd now?
 - [ ] OQ5: Tile source & offline caching workflow for client sites?
 - [ ] OQ6: Box API auth mechanism (token vs per-client certs) and future console user model (roles? read-only viewers?) — auth itself is now required day one (FC2)

@@ -12,10 +12,43 @@
 #include <QtQml/QQmlAbstractUrlInterceptor>
 
 #include "QGCCorePlugin.h"
+#include "QGCOptions.h"
 
 class QQmlApplicationEngine;
 
 Q_DECLARE_LOGGING_CATEGORY(CustomLog)
+
+/// Simplification pass (design doc §5.1): PGC clients are single-vehicle
+/// ArduPilot operators. Engineer-grade features stay reachable through QGC's
+/// built-in Advanced Mode toggle; these options trim the default experience.
+class PGCOptions;
+
+class PGCFlyViewOptions : public QGCFlyViewOptions
+{
+public:
+    PGCFlyViewOptions(PGCOptions *options, QObject *parent = nullptr);
+
+    // Overrides from QGCFlyViewOptions
+    bool showMultiVehicleList() const final { return false; }               // single-vehicle product (multi-vehicle is D9 console territory)
+};
+
+class PGCOptions : public QGCOptions
+{
+public:
+    PGCOptions(QGCCorePlugin *plugin, QObject *parent = nullptr);
+
+    // Overrides from QGCOptions
+    QGCFlyViewOptions *flyViewOptions() const final;
+    bool multiVehicleEnabled() const final { return false; }
+    bool showFirmwareUpgrade() const final;                                 // engineer task (advanced mode only)
+    bool showPX4LogTransferOptions() const final { return false; }          // ArduPilot fleet
+    bool checkFirmwareVersion() const final { return false; }               // we qualify firmware, not the operator
+    bool allowJoystickSelection() const final { return false; }             // manual flight stays on Herelink (D6)
+
+private:
+    QGCCorePlugin *_plugin = nullptr;
+    PGCFlyViewOptions *_flyViewOptions = nullptr;
+};
 
 class CustomPlugin : public QGCCorePlugin
 {
@@ -26,6 +59,8 @@ public:
     ~CustomPlugin();
 
     static QGCCorePlugin *instance();
+
+    QGCOptions *options() final;
 
     // Overrides from QGCCorePlugin
     void cleanup() final;
@@ -41,6 +76,7 @@ public:
 private:
     QQmlApplicationEngine *_qmlEngine = nullptr;
     class CustomOverrideInterceptor *_interceptor = nullptr;
+    PGCOptions *_options = nullptr;
 };
 
 /*===========================================================================*/

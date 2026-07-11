@@ -35,9 +35,41 @@ namespace PGCBrand {
     constexpr const char *orangeSoft = "#F8C0B4"; // light-theme highlight fill
 }
 
+PGCFlyViewOptions::PGCFlyViewOptions(PGCOptions *options, QObject *parent)
+    : QGCFlyViewOptions(options, parent)
+{
+}
+
+PGCOptions::PGCOptions(QGCCorePlugin *plugin, QObject *parent)
+    : QGCOptions(parent)
+    , _plugin(plugin)
+    , _flyViewOptions(new PGCFlyViewOptions(this, this))
+{
+}
+
+QGCFlyViewOptions *PGCOptions::flyViewOptions() const
+{
+    return _flyViewOptions;
+}
+
+// Firmware flashing is an engineer task: visible only in Advanced Mode.
+bool PGCOptions::showFirmwareUpgrade() const
+{
+    return _plugin->showAdvancedUI();
+}
+
 CustomPlugin::CustomPlugin(QObject *parent)
     : QGCCorePlugin(parent)
+    , _options(new PGCOptions(this, this))
 {
+    // Client builds start simple; engineers flip Advanced Mode in the
+    // application menu to reach calibration/param/firmware tooling.
+    _showAdvancedUI = false;
+}
+
+QGCOptions *CustomPlugin::options()
+{
+    return _options;
 }
 
 CustomPlugin::~CustomPlugin()

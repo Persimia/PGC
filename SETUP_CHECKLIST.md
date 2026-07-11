@@ -19,19 +19,12 @@ Order matters roughly top to bottom. Design doc references in parentheses.
       the result. File issues for anything surprising — this is the fastest
       feedback loop we have.
 
-## 2. ArduPilot SITL (half a day, once) — **DEFERRED (2026-07-09)**
+## 2. ArduPilot SITL — **REMOVED as a requirement (2026-07-11, Sam's call)**
 
-> Skipped for now by decision. Note: SITL is the Phase 1 acceptance test, so
-> it must be un-deferred before Phase 1 is declared done and before any QGC
-> overlay work relies on flown-mission behavior.
-
-Reference: https://ardupilot.org/dev/docs/sitl-simulator-software-in-the-loop.html
-
-- [ ] Clone ArduPilot, run the environment install script for your OS.
-- [ ] `sim_vehicle.py -v ArduCopter --console --map` starts a simulated copter.
-- [ ] Connect stock QGC to SITL (auto-connects on UDP 14550).
-- [ ] Load a generated `.plan`, upload, and fly it in SITL end-to-end.
-      **This is the Phase 1 acceptance test** — do it before any QGC overlay work.
+> No longer gates any phase. Flown-mission validation happens on real
+> hardware via the Herelink spike / field tests instead. Reference kept in
+> case it's ever revisited:
+> https://ardupilot.org/dev/docs/sitl-simulator-software-in-the-loop.html
 
 ## 3. Stock QGC built from source (budget a frustrating week — R1)
 
@@ -66,9 +59,8 @@ Reference: QGC dev guide → "Getting Started with Source and Builds".
 
 ## 5. Non-code homework (parallel, ~1 hr each)
 
-- [ ] Book the licensing hour with counsel — **Route A decided (2026-07-09)**;
-      counsel visit is now a sanity-check before first client ship (N7), not
-      a route decision.
+- [x] Book the licensing hour with counsel — **done (2026-07-11)**. Route A
+      confirmed (D7).
 - [ ] Collect camera/gimbal specs (sensor size, focal length, resolution) for
       the GSD math milestone (OQ8).
 - [x] Pick a product name (OQ1) — **PGC** (2026-07-09). Branding assets in

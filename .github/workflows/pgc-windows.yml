@@ -1,0 +1,110 @@
+name: pgc-windows
+
+# Builds the branded PGC app (QGC v5.0.8 + overlay + carried patches) and the
+# frozen Mission Engine, produces the Windows installer artifact.
+# Mirrors the local recipe in qgc-overlay/README.md.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'qgc-overlay/**'
+      - 'mission_engine/**'
+      - '.github/workflows/pgc-windows.yml'
+  workflow_dispatch:
+
+env:
+  QGC_TAG: v5.0.8
+  QT_VERSION: 6.8.3
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout PGC repo
+        uses: actions/checkout@v4
+        with:
+          path: pgc
+
+      - name: Clone QGC at pinned tag
+        run: >
+          git clone --recursive --shallow-submodules --depth 1
+          --branch ${{ env.QGC_TAG }}
+          https://github.com/mavlink/qgroundcontrol.git qgc
+        shell: pwsh
+
+      - name: Apply carried patches
+        run: ./pgc/qgc-overlay/apply-patches.ps1 -QgcRoot (Resolve-Path ./qgc)
+        shell: pwsh
+
+      - name: Sync overlay into custom/
+        run: ./pgc/qgc-overlay/sync-to-qgc.ps1 -QgcRoot (Resolve-Path ./qgc)
+        shell: pwsh
+
+      - name: Set up Python (frozen engine)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build frozen Mission Engine
+        run: |
+          python -m venv pgc/mission_engine/.venv
+          pgc/mission_engine/.venv/Scripts/pip install -e ./pgc/mission_engine
+          & pgc/mission_engine/build-exe.ps1
+        shell: pwsh
+
+      - name: Engine unit tests
+        run: pgc/mission_engine/.venv/Scripts/python -m unittest discover -s pgc/mission_engine/tests
+        shell: pwsh
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          modules: qtcharts qtlocation qtpositioning qtspeech qt5compat qtmultimedia qtserialport qtimageformats qtshadertools qtconnectivity qtquick3d qtsensors
+          cache: true
+
+      - name: Set up MSVC shell
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Configure
+        run: >
+          & "$env:QT_ROOT_DIR/bin/qt-cmake.bat" -S qgc -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DQGC_ENABLE_GST_VIDEOSTREAMING=OFF
+          -DQGC_ENABLE_QT_VIDEOSTREAMING=ON
+          -DQGC_STABLE_BUILD=ON
+        shell: pwsh
+
+      - name: Build
+        run: cmake --build build --target all
+        shell: pwsh
+
+      - name: Stage frozen engine next to PGC.exe
+        run: |
+          robocopy pgc/mission_engine/dist/mission-engine build/Release/pgc-engine /MIR /NFL /NDL /NJH /NJS
+          if ($LASTEXITCODE -ge 8) { exit 1 } else { exit 0 }
+        shell: pwsh
+
+      - name: Boot test
+        run: ./build/Release/PGC.exe --simple-boot-test
+        shell: pwsh
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PGC-windows
+          path: |
+            build/Release/PGC.exe
+            build/Release/pgc-engine/
+          if-no-files-found: error
+
+      # TODO(packaging phase): NSIS installer via cmake --install (needs the
+      # deploy step + windeployqt staging), engine inside the installer, code
+      # signing (R3). Artifact above is the raw build for now.
